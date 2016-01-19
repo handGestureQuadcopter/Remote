@@ -14,7 +14,7 @@ xTaskHandle xSensorHandle;
 
 TickType_t xLastWakeTime;
 TickType_t const xFrequency = 100 / portTICK_PERIOD_MS;
-float const dt = 0.1f;
+float const dt = 0.3f;
 
 Kalman kalmanX; // Create the Kalman instances
 Kalman kalmanY;
@@ -29,6 +29,7 @@ void MPU6050Task(void) {
 	char uart_out[32];
 
 	MPU6050_Task_Suspend();
+	vTaskDelayUntil(&xLastWakeTime, xFrequency); // wait while sensor is ready
 
 	initKalman(&kalmanX);
 	initKalman(&kalmanY);
@@ -38,7 +39,7 @@ void MPU6050Task(void) {
 	accY = MPU6050_Data.Accelerometer_Y;
 	accZ = MPU6050_Data.Accelerometer_Z;
 
-	float roll = atan2(-accY, accZ) * RAD_TO_DEG;
+	float roll = atan2(-accY, -accZ) * RAD_TO_DEG;
 	float pitch = atan(-accX / sqrt1(Square(accY) + Square(accZ))) * RAD_TO_DEG;
 
 	setAngle(&kalmanX, roll); // Set starting angle
@@ -56,7 +57,7 @@ void MPU6050Task(void) {
 		gyroY = MPU6050_Data.Gyroscope_Y;
 		gyroZ = MPU6050_Data.Gyroscope_Z;
 
-		float roll = atan2(-accY, accZ) * RAD_TO_DEG;
+		float roll = atan2(-accY, -accZ) * RAD_TO_DEG;
 		float pitch = atan(-accX / sqrt1(Square(accY) + Square(accZ))) * RAD_TO_DEG;
 
 		float gyroXrate = gyroX * MPU6050_Data.Gyro_Mult; // Convert to deg/s
@@ -75,33 +76,27 @@ void MPU6050Task(void) {
 
 #ifdef DEBUG
 		USART1_puts("\r\n");
-		shell_float2str(kalAngleX, uart_out);
+		shell_float2str(accZ, uart_out);
 		USART1_puts(uart_out);
 #else
-		if (accY < -6000) {
-			USART1_puts("\r\nmove left");
-		} else if (accY > 6000) {
+		if (accY < -6300) {
 			USART1_puts("\r\nmove right");
-		} else if (accZ > 0) {
-			//palms up
-			if (kalAngleY > 25) {
-				USART1_puts("\r\nbackward");
-			} else if ( kalAngleY < -25) {
-				USART1_puts("\r\nforward");
-			}
-		} else if (accZ < 0) {
-			//palms down
-			if (kalAngleY > 25) {
-				USART1_puts("\r\nDOWN");
-			} else if ( kalAngleY < -25) {
-				USART1_puts("\r\nUP");
-			} else {
-				USART1_puts("\r\nsuspends");
-			}
+		} else if (accY > 6300) {
+			USART1_puts("\r\nmove left");
+		} else if (accZ < 0 && kalAngleY > 47) {
+			USART1_puts("\r\nforward");
+		} else if (accZ < 0 && kalAngleY < -30) {
+			USART1_puts("\r\nDOWN");
+		} else if (accZ < 0 && kalAngleY > 25 && kalAngleY < 47) {
+			USART1_puts("\r\nUP");
+//		} else if (accZ < 0 && kalAngleY > 47) {
+//			USART1_puts("\r\nforward");
+		} else {
+			USART1_puts("\r\nsuspend");
 		}
 #endif
 
-		vTaskDelayUntil(&xLastWakeTime, xFrequency); // delay 100 ms
+		vTaskDelayUntil(&xLastWakeTime, xFrequency);
 	}
 }
 
