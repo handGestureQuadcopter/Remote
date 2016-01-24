@@ -27,6 +27,9 @@ float kalAngleX, kalAngleY; // Calculated angle using a Kalman filter
 
 void MPU6050Task(void) {
 	char uart_out[32];
+	uint8_t controller_command = 0;
+	uint8_t pre_command = 0;
+	uint8_t count = 0;
 
 	MPU6050_Task_Suspend();
 	vTaskDelayUntil(&xLastWakeTime, xFrequency); // wait while sensor is ready
@@ -80,19 +83,46 @@ void MPU6050Task(void) {
 		USART1_puts(uart_out);
 #else
 		if (accY < -6300) {
-			USART1_puts("\r\nmove right");
+			controller_command = 1;
 		} else if (accY > 6300) {
-			USART1_puts("\r\nmove left");
+			controller_command = 2;
 		} else if (accZ < 0 && kalAngleY > 47) {
-			USART1_puts("\r\nforward");
+			controller_command = 3;
 		} else if (accZ < 0 && kalAngleY < -30) {
-			USART1_puts("\r\nDOWN");
+			controller_command = 4;
 		} else if (accZ < 0 && kalAngleY > 25 && kalAngleY < 47) {
-			USART1_puts("\r\nUP");
-//		} else if (accZ < 0 && kalAngleY > 47) {
-//			USART1_puts("\r\nforward");
+			controller_command = 5;
 		} else {
-			USART1_puts("\r\nsuspend");
+			controller_command = 6;
+		}
+
+		// check hand gesture for a while
+		if (count == 5 && pre_command == controller_command) {
+			switch (controller_command) {
+			case 1:
+				USART1_puts("\r\nmove right");
+				break;
+			case 2:
+				USART1_puts("\r\nmove left");
+				break;
+			case 3:
+				USART1_puts("\r\nforward");
+				break;
+			case 4:
+				USART1_puts("\r\nDOWN");
+				break;
+			case 5:
+				USART1_puts("\r\nUP");
+				break;
+			case 6:
+				USART1_puts("\r\nsuspend");
+				break;
+			}
+		} else if (pre_command == controller_command) {
+			count++;
+		} else {
+			pre_command = controller_command;
+			count = 0;
 		}
 #endif
 
